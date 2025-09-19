@@ -11,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Button,
 } from 'react-native';
 
 import MapView from './MapView';
@@ -34,7 +35,10 @@ const App = () => {
 
   const handleRadiusChange = (text: string) => {
     setRadiusInput(text);
-    const newRadius = parseInt(text, 10);
+  };
+
+  const onPressApply = () => {
+    const newRadius = parseInt(radiusInput, 10);
     if (!isNaN(newRadius) && newRadius > 0) {
       setRadius(newRadius);
     }
@@ -92,6 +96,7 @@ const App = () => {
                 onChangeText={handleRadiusChange}
                 keyboardType="numeric"
               />
+              <Button title="Apply" onPress={onPressApply} />
             </View>
 
             <FlatList

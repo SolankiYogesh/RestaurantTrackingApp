@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import Geolocation, {
   GeolocationResponse,
 } from '@react-native-community/geolocation';
 import DATA from './DATA';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Restaurant {
   id: string;
@@ -22,6 +23,7 @@ const useLocation = () => {
     DATA as Restaurant[],
   );
   const [radius, setRadius] = useState(100);
+  const radiusRef = useRef(100);
   const [watchId, setWatchId] = useState<number | null>(null);
 
   const calculateDistance = (
@@ -58,7 +60,7 @@ const useLocation = () => {
           let visitStartTime = restaurant.visitStartTime;
           let elapsedTime = restaurant.elapsedTime || 0;
 
-          if (distance <= radius) {
+          if (distance <= radiusRef.current) {
             if (restaurant.status === 'never') {
               newStatus = 'visiting';
               visitStartTime = Date.now();
@@ -88,10 +90,12 @@ const useLocation = () => {
         });
       });
     },
-    [radius],
+    [],
   );
 
   const startWatchingLocation = useCallback(() => {
+    console.log('startWatchingLocation');
+
     if (watchId !== null) {
       Geolocation.clearWatch(watchId);
     }
@@ -128,7 +132,14 @@ const useLocation = () => {
   }, [watchId, updateRestaurantStatus]);
 
   useEffect(() => {
-    startWatchingLocation();
+    AsyncStorage.getItem('RADIUS').then(rad => {
+      const getRadius = rad ? +rad : 100;
+      if (getRadius) {
+        radiusRef.current = getRadius;
+        setRadius(getRadius);
+        startWatchingLocation();
+      }
+    });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -159,11 +170,21 @@ const useLocation = () => {
     }
   };
 
+  const onRadiusUpdate = useCallback(
+    (value: number) => {
+      radiusRef.current = value;
+      setRadius(value);
+      startWatchingLocation();
+      AsyncStorage.setItem('RADIUS', value.toString());
+    },
+    [startWatchingLocation],
+  );
+
   return {
     currentLocation,
     restaurants,
     radius,
-    setRadius,
+    setRadius: onRadiusUpdate,
     resetVisits,
   };
 };
