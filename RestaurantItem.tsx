@@ -99,7 +99,7 @@ export default memo(({ item, onReset }: Props) => {
           {item.status === 'visiting' && (
             <>
               <Text style={styles.timer}>
-                Time: {formatTime(item.elapsedTime || 0)} / 0:30
+                Time: {formatTime(item.elapsedTime || 0)} / 2:00
               </Text>
               <Text style={styles.hint}>Scrolls to view when active</Text>
             </>

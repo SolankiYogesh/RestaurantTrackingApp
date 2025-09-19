@@ -45,6 +45,13 @@ const App = () => {
   };
 
   useEffect(() => {
+    if (radiusInput.toString() !== radius.toString()) {
+      setRadiusInput(radius.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radius]);
+
+  useEffect(() => {
     const changedRestaurants = restaurants.filter((restaurant, index) => {
       if (index >= prevRestaurants.length) return false;
       return restaurant.status !== prevRestaurants[index].status;

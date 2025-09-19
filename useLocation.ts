@@ -1,5 +1,5 @@
+// useLocation.tsx
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
 import Geolocation, {
   GeolocationResponse,
 } from '@react-native-community/geolocation';
@@ -25,6 +25,7 @@ const useLocation = () => {
   const [radius, setRadius] = useState(100);
   const radiusRef = useRef(100);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const timerRef = useRef<any>(null);
 
   const calculateDistance = (
     lat1: number,
@@ -45,10 +46,57 @@ const useLocation = () => {
     return R * c;
   };
 
+  // Start timer to update elapsed time every second
+  const startTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    timerRef.current = setInterval(() => {
+      setRestaurants(prevRestaurants => {
+        const hasVisiting = prevRestaurants.some(r => r.status === 'visiting');
+
+        if (!hasVisiting) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          return prevRestaurants;
+        }
+
+        return prevRestaurants.map(restaurant => {
+          if (restaurant.status === 'visiting' && restaurant.visitStartTime) {
+            const elapsedTime = Math.floor(
+              (Date.now() - restaurant.visitStartTime) / 1000,
+            );
+
+            if (elapsedTime >= 120) {
+              // Time's up - mark as visited
+              return {
+                ...restaurant,
+                status: 'visited',
+                elapsedTime: 120,
+                visitStartTime: undefined,
+              };
+            }
+
+            return {
+              ...restaurant,
+              elapsedTime,
+            };
+          }
+          return restaurant;
+        });
+      });
+    }, 1000);
+  }, []);
+
   const updateRestaurantStatus = useCallback(
     (location: GeolocationResponse) => {
       setRestaurants(prevRestaurants => {
-        return prevRestaurants.map(restaurant => {
+        let hasVisiting = false;
+
+        const updatedRestaurants = prevRestaurants.map(restaurant => {
           const distance = calculateDistance(
             location.coords.latitude,
             location.coords.longitude,
@@ -64,18 +112,14 @@ const useLocation = () => {
             if (restaurant.status === 'never') {
               newStatus = 'visiting';
               visitStartTime = Date.now();
+              elapsedTime = 0;
+              hasVisiting = true;
             } else if (restaurant.status === 'visiting') {
-              const currentTime = Date.now();
-              elapsedTime = Math.floor(
-                (currentTime - (visitStartTime || currentTime)) / 1000,
-              );
-
-              if (elapsedTime >= 30) {
-                newStatus = 'visited';
-                visitStartTime = undefined;
-              }
+              hasVisiting = true;
+              // Keep the existing visitStartTime and let the timer handle elapsedTime
             }
           } else if (restaurant.status === 'visiting') {
+            // Left the area while visiting
             newStatus = 'never';
             visitStartTime = undefined;
             elapsedTime = 0;
@@ -88,14 +132,22 @@ const useLocation = () => {
             elapsedTime,
           };
         });
+
+        // Start/stop timer based on whether any restaurant is being visited
+        if (hasVisiting && !timerRef.current) {
+          startTimer();
+        } else if (!hasVisiting && timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        return updatedRestaurants;
       });
     },
-    [],
+    [startTimer],
   );
 
   const startWatchingLocation = useCallback(() => {
-    console.log('startWatchingLocation');
-
     if (watchId !== null) {
       Geolocation.clearWatch(watchId);
     }
@@ -107,13 +159,6 @@ const useLocation = () => {
       fastestInterval: 3000,
     };
 
-    if (Platform.OS === 'ios') {
-      Object.assign(locationOptions, {
-        showsBackgroundLocationIndicator: true,
-        activityType: 'otherNavigation',
-      });
-    }
-
     const id = Geolocation.watchPosition(
       position => {
         setCurrentLocation(position);
@@ -124,6 +169,18 @@ const useLocation = () => {
         if (error.code !== error.PERMISSION_DENIED) {
           setTimeout(startWatchingLocation, 5000);
         }
+        setCurrentLocation(state => {
+          if (!state) {
+            return {
+              coords: {
+                latitude: 22.2703,
+                longitude: 70.761,
+              },
+            } as GeolocationResponse;
+          } else {
+            return state;
+          }
+        });
       },
       locationOptions,
     );
@@ -141,6 +198,14 @@ const useLocation = () => {
       }
     });
 
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (watchId !== null) {
+        Geolocation.clearWatch(watchId);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -167,6 +232,12 @@ const useLocation = () => {
           elapsedTime: 0,
         })),
       );
+
+      // Stop timer when resetting all
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   };
 
