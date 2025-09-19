@@ -14,7 +14,7 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
-target 'AwesomeProject' do
+target 'RestaurantTracking' do
   config = use_native_modules!
 
   rn_maps_path = '../node_modules/react-native-maps'
